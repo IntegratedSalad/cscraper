@@ -1,2 +1,2 @@
 # cscraper
-Contact data scraper web app written with Tornado.
+Contact data scraper web app written with BeautifulSoup
