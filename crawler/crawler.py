@@ -8,155 +8,190 @@ path_of_folder = os.path.dirname(os.path.realpath(__file__)) + '/data/'
 
 
 class Crawler:
-	def __init__(self, phrase):
+
+	"""
+	Each crawler focuses on one query, gathering data from sites that it yields.
+
+	"""
+
+	def __init__(self, query, search_results_number):
+		self.query = query
+		self.search_results_number = search_results_number
+		self.sites = []
 		self.data = None
-		self.phrase = phrase
 
+	def create_data_dict(self):
+		self.data = dict.fromkeys(self.sites)
 
-
-
-def get_search_name():
-	"""
-	Get a word that will be entered in the google search.
-	"""
-
-	got = False
-
-	# TODO: add custom search num after a comma. or pipes - ... |warszawa|150
-
-	while not got:
-		search = input("What type of company are you searching for? >")
-
-		goode_yes_no = input("Searching for: '{0}' - is that ok? (Y) (N) (Q) >".format(search + " " + city))
-
-		if goode_yes_no.lower() == 'y':
-			print("Searching google...")
-			return search
-
-		elif goode_yes_no.lower() == 'n':
-			print("Ok, let's start again:")
-			continue
-
-		elif goode_yes_no.lower() == 'q':
-			exit(0)
-
-		else:
-			print("y or n or q only")
-			continue
-
-def get_html_from_url(url):
-
-	headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
-				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-       			'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
-       			'Accept-Encoding': 'none',
-       			'Accept-Language': 'pl-PL,pl;q=0.8'}
-
-	req = urllib.request.Request(url, headers=headers)
-
-	try:
-		with urllib.request.urlopen(req, timeout=10) as google_binary:
-			html = google_binary.read().decode('utf-8')
-			return html
-	except Exception as e:
-		if "404" in str(e):
-			return "404"
-		elif "403" in str(e):
-			pass
-		elif "400" in str(e):
-			pass
-		elif "429" in str(e):
-			pass
-		elif "utf" in str(e):
-			pass
-		elif "timed" in str(e):
-			pass
-		elif "certificate" in str(e):
-			pass
-		elif "999" in str(e):
-			pass
-		elif "500" in str(e):
-			return ""
-		else:
-			with open(path_of_folder + "crash.txt", 'w') as file:
-				file.write(str(e))
-				file.write("\n")
-				file.write(url)
-				file.close()
-			#print("Something went wrong:")
-			#print(str(e))
-			#print(url)
-			exit(0)
-
-def get_links(search_string, number_of_search_results):
-
-	return [link for link in googlesearch.search(search_string,
-								tld="pl",
+	def get_links(self):
+		self.sites = [link for link in googlesearch.search(self.query,
+								# tld="pl",
 								lang="pl",
-								num=number_of_search_results,
+								num=self.search_results_number,
 								pause=2.0,
-								stop=number_of_search_results,
+								stop=self.search_results_number,
 								user_agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0'
-								) if not ("youtube" in link or "facebook" in link or "olx" in link or "allegro" in link or "sprzedajemy" in link or "gumtree" in link)] # here add exceptions in list
+								) if not ("youtube" in link or "facebook" in link or "olx" in link or "allegro" in link or "sprzedajemy" in link or "gumtree" in link)]
 
-def parse_site(soup, url):
+	def parse_through_sites(self):
 
-	phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
-	mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
+		for site in self.sites:
+			print(site)
+			site_html = self.get_html_from_url(site)
+			if site_html is not None:
+				site_soup = BeautifulSoup(site_html, 'html.parser')
 
-	mail_pattern = re.compile(mail_regex)
-	phone_pattern = re.compile(phone_regex)
-
-	options = { # this dict is redundant, for loop assures that it will try only once for each option.
-
-			"search_through_a_tag": False,
-
-			}
-
-	functions = { # make this as a list, not dict
-
-			"search_through_a_tag": search_through_a_tag_func,
-
-			}
+				self.data[site] = self.parse_site(site_soup, site)
 
 
-	html_document = soup.prettify() # it might be slow, because of searching through the whole html document - maybe reduce that to only "a" tags.
+	def get_html_from_url(self, url):
 
-	first_url = url
+		headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
+					'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+	       			'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+	       			'Accept-Encoding': 'none',
+	       			'Accept-Language': 'pl-PL,pl;q=0.8'}
 
-	#print(html_document)
+		req = urllib.request.Request(url, headers=headers)
 
-	emails = mail_pattern.findall(html_document) 	# first try
-	phones = phone_pattern.findall(html_document)	# first try
-
-	email_protection = False
-
-	if parse_result(is_empty(emails), is_empty(phones), options) == "trying":
-
-		for option, was_used in options.items():
-
-			if parse_result(is_empty(emails), is_empty(phones), options) == "trying":
-
-				new_soup, new_url = use_option(was_used, functions[option], url, soup) # all functions must return new_url - if none - ""
-
-				if new_soup is not None:
-
-					if not email_protection:
-						email_protection = check_for_email_protection(new_soup)
-
-					options[option] = True
-					url = new_url
-					soup = new_soup
-					emails = mail_pattern.findall(new_soup.prettify())
-					phones = phone_pattern.findall(new_soup.prettify())
+		try:
+			with urllib.request.urlopen(req, timeout=10) as google_binary:
+				html = google_binary.read().decode('utf-8')
+				return html
+		except Exception as e:
+			if "404" in str(e):
+				return "404"
+			elif "403" in str(e):
+				pass
+			elif "400" in str(e):
+				pass
+			elif "429" in str(e):
+				pass
+			elif "utf" in str(e):
+				pass
+			elif "timed" in str(e):
+				pass
+			elif "certificate" in str(e):
+				pass
+			elif "999" in str(e):
+				pass
+			elif "500" in str(e):
+				return ""
 			else:
-				break
+				with open(path_of_folder + "crash.txt", 'w') as file:
+					file.write(str(e))
+					file.write("\n")
+					file.write(url)
+					file.close()
+				#print("Something went wrong:")
+				#print(str(e))
+				#print(url)
+				exit(0)
+
+	def parse_site(self, soup, url):
+
+		phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
+		mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
+
+		mail_pattern = re.compile(mail_regex)
+		phone_pattern = re.compile(phone_regex)
+
+		options = { # this dict is redundant, for loop assures that it will try only once for each option.
+
+				"search_through_a_tag": False,
+
+				}
+
+		functions = { # make this as a list, not dict
+
+				"search_through_a_tag": search_through_a_tag_func,
+
+				}
 
 
-	if email_protection:
-		emails = ["Protected"]
+		html_document = soup.prettify() # it might be slow, because of searching through the whole html document - maybe reduce that to only "a" tags.
 
-	return {'emails': remove_duplicates(emails), 'phones': remove_duplicates(phones), 'url': first_url}
+		first_url = url
+
+		#print(html_document)
+
+		emails = mail_pattern.findall(html_document) 	# first try
+		phones = phone_pattern.findall(html_document)	# first try
+
+		email_protection = False
+
+		if parse_result(is_empty(emails), is_empty(phones), options) == "trying":
+
+			for option, was_used in options.items():
+
+				if parse_result(is_empty(emails), is_empty(phones), options) == "trying":
+
+					new_soup, new_url = use_option(was_used, functions[option], url, soup) # all functions must return new_url - if none - ""
+
+					if new_soup is not None:
+
+						if not email_protection:
+							email_protection = check_for_email_protection(new_soup)
+
+						options[option] = True
+						url = new_url
+						soup = new_soup
+						emails = mail_pattern.findall(new_soup.prettify())
+						phones = phone_pattern.findall(new_soup.prettify())
+				else:
+					break
+
+
+		if email_protection:
+			emails = ["Protected"]
+
+		return {'emails': remove_duplicates(emails), 'phones': remove_duplicates(phones), 'url': first_url}
+
+
+	def search_through_a_tag_func(self, url, soup):
+
+		"""
+		This function searches for "kontakt" or "contact" site.
+		"""
+
+		# TODO:
+		# catch exceptions - test on various sites
+
+
+		try:
+			for a_tag in soup.find_all('a'):
+				#print(a_tag)
+				href = a_tag.get('href')
+				#print(href)
+				if href is not None:
+					if "email-protection" in a_tag.get('href'):
+						return None, ""
+
+					if ("kontakt" in href) or ("contact" in href):
+						if href[0] and href[1] == "/": # prevent from entering links from "//"
+							return BeautifulSoup(self.get_html_from_url("http://" + a_tag.get('href')[2:]), 'html.parser'), href
+						else:
+							return BeautifulSoup(self.get_html_from_url(a_tag.get('href')), 'html.parser'), href
+
+		except ValueError: # link may be not full, only an extension from slash.
+			new_link = url + "/" + href
+
+			return BeautifulSoup(self.get_html_from_url(new_link), 'html.parser'), new_link
+
+		return None, ""
+
+
+
+	def crawl(self):
+		self.get_links()
+		self.create_data_dict()
+
+		self.parse_through_sites()
+
+
+	@staticmethod
+	def remove_duplicates(list_of_duplicates):
+		return list(dict.fromkeys(list_of_duplicates))
 
 
 def is_empty(list):
@@ -179,39 +214,6 @@ def check_for_email_protection(soup):
 		if href is not None and "email-protection" in href: return True
 
 	return False
-
-
-def search_through_a_tag_func(url, soup):
-
-	"""
-	This function searches for "kontakt" or "contact" site.
-	"""
-
-	# TODO:
-	# catch exceptions - test on various sites
-
-
-	try:
-		for a_tag in soup.find_all('a'):
-			#print(a_tag)
-			href = a_tag.get('href')
-			#print(href)
-			if href is not None:
-				if "email-protection" in a_tag.get('href'):
-					return None, ""
-
-				if ("kontakt" in href) or ("contact" in href):
-					if href[0] and href[1] == "/": # prevent from entering links from "//"
-						return BeautifulSoup(get_html_from_url("http://" + a_tag.get('href')[2:]), 'html.parser'), href
-					else:
-						return BeautifulSoup(get_html_from_url(a_tag.get('href')), 'html.parser'), href
-
-	except ValueError: # link may be not full, only an extension from slash.
-		new_link = url + "/" + href
-
-		return BeautifulSoup(get_html_from_url(new_link), 'html.parser'), new_link
-
-	return None, ""
 
 
 def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
@@ -238,9 +240,6 @@ def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
 		elif (not is_phones_empty and not is_emails_empty):
 			return "got_all"
 	
-
-def remove_duplicates(list_of_duplicates):
-	return list(dict.fromkeys(list_of_duplicates))
 
 def save_search_results(link_list):
 	with open(path_of_folder + "SearchResults.txt", 'w') as file:
@@ -361,7 +360,7 @@ def main():
 
 def debug():
 
-	sample_site = "https://agencjailuzjonistow.pl/?fbclid=IwAR1_xZjY5hQTOKOnm-seHyd24G3arOFQvzPMuyUgU7GtUY0wjnzeQv3t9vA"
+	sample_site = "https://hotelkossak.pl/"
 	sample_site_html = get_html_from_url(sample_site)
 
 	sample_soup = BeautifulSoup(sample_site_html, 'html.parser')
@@ -370,6 +369,10 @@ def debug():
 
 	print(data)
 
+def crawler_debug():
+
+	crawler = Crawler("hotel kraków", 20)
+	crawler.crawl()
 
 
 def debug_search_parse_write():
@@ -389,7 +392,8 @@ def debug_search_parse_write():
 
 if __name__ == '__main__':
 	#main()
-	debug()
+	# help(googlesearch.search)
+	crawler_debug()
 	#debug_search_parse_write()
 
 

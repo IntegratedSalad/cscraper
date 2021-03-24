@@ -49,6 +49,8 @@ def get_html_from_url(url):
 			html = google_binary.read().decode('utf-8')
 			return html
 	except Exception as e:
+		print(e)
+		exit(0)
 		if "404" in str(e):
 			return "404"
 		elif "403" in str(e):
@@ -351,7 +353,7 @@ def main():
 
 def debug():
 
-	sample_site = "https://agencjailuzjonistow.pl/?fbclid=IwAR1_xZjY5hQTOKOnm-seHyd24G3arOFQvzPMuyUgU7GtUY0wjnzeQv3t9vA"
+	sample_site = "https://hotelkossak.pl/"
 	sample_site_html = get_html_from_url(sample_site)
 
 	sample_soup = BeautifulSoup(sample_site_html, 'html.parser')
@@ -378,8 +380,8 @@ def debug_search_parse_write():
 	print("File written.")
 
 if __name__ == '__main__':
-	#main()
-	debug()
+	main()
+	# debug()
 	#debug_search_parse_write()
 
 
