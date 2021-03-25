@@ -1,3 +1,4 @@
+import asyncio
 import urllib.request, os.path, csv, re, googlesearch, time
 from urllib.parse import quote
 from bs4 import BeautifulSoup
@@ -10,6 +11,9 @@ class Crawler:
 
 	"""
 	Each crawler focuses on one query, gathering data from sites that it yields.
+
+	No - CrawlerManager deploys Crawlers that focus on each site concurrently.
+	They queue as many tasks as they can concurrently.
 
 	"""
 
@@ -24,7 +28,7 @@ class Crawler:
 
 	def get_links(self):
 		self.sites = [link for link in googlesearch.search(self.query,
-								# tld="pl",
+								tld="pl",
 								lang="pl",
 								num=self.search_results_number,
 								pause=2.0,
@@ -119,18 +123,18 @@ class Crawler:
 
 		email_protection = False
 
-		if parse_result(is_empty(emails), is_empty(phones), options) == "trying":
+		if self.parse_result(self.is_empty(emails), self.is_empty(phones), options) == "trying":
 
 			for option, was_used in options.items():
 
-				if parse_result(is_empty(emails), is_empty(phones), options) == "trying":
+				if self.parse_result(self.is_empty(emails), self.is_empty(phones), options) == "trying":
 
-					new_soup, new_url = use_option(was_used, functions[option], url, soup) # all functions must return new_url - if none - ""
+					new_soup, new_url = self.use_option(was_used, functions[option], url, soup) # all functions must return new_url - if none - ""
 
 					if new_soup is not None:
 
 						if not email_protection:
-							email_protection = check_for_email_protection(new_soup)
+							email_protection = self.check_for_email_protection(new_soup)
 
 						options[option] = True
 						url = new_url
@@ -180,7 +184,6 @@ class Crawler:
 		return None, ""
 
 
-
 	def crawl(self):
 		self.get_links()
 		self.create_data_dict()
@@ -189,184 +192,57 @@ class Crawler:
 
 
 	@staticmethod
+	def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
+
+		"""
+		Control the result of parsing html document, in search for emails and phones.
+
+		:param bool is_emails_empty: takes the boolean value of check if the list containing emails is not empty (lesser than 1)
+		:param bool is_phones_empty: takes the boolean value of check if the list containing phones is not empty (lesser than 1)
+		:param dict dict_of_options: dictionary of options that are used to find emails and phones
+		:return: result string
+		:rtype: str
+		"""
+
+
+		# basically - try every option if there are still options.
+
+		if (is_emails_empty or is_phones_empty) and (all(dict_of_options.values()) is False) : # if there are no emails or no values and there are still options
+			return "trying"
+		else:
+			if (is_phones_empty or is_emails_empty) and all(dict_of_options.values()): # if there are no emails or no values and there are no options left
+				return "got_some"
+			
+			elif (not is_phones_empty and not is_emails_empty):
+				return "got_all"
+
+
+	@staticmethod
 	def remove_duplicates(list_of_duplicates):
 		return list(dict.fromkeys(list_of_duplicates))
 
+	@staticmethod
+	def is_empty(list):
+		return len(list) < 1
 
-def is_empty(list):
-	return len(list) < 1
+	@staticmethod
+	def use_option(option, func, url, soup):
+		# all functions return new search
+		if not option: # if it's false - not used yet
+			new_soup, new_url = func(url, soup)
+			return new_soup, new_url
+		else:
+			return None
 
+	@staticmethod
+	def check_for_email_protection(soup):
 
-def use_option(option, func, url, soup):
-	# all functions return new search
-	if not option: # if it's false - not used yet
-		new_soup, new_url = func(url, soup)
-		return new_soup, new_url
-	else:
-		return None
+		for a_tag in soup.find_all('a'):
+			href = a_tag.get('href')
 
-def check_for_email_protection(soup):
+			if href is not None and "email-protection" in href: return True
 
-	for a_tag in soup.find_all('a'):
-		href = a_tag.get('href')
-
-		if href is not None and "email-protection" in href: return True
-
-	return False
-
-
-def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
-
-	"""
-	Control the result of parsing html document, in search for emails and phones.
-
-	:param bool is_emails_empty: takes the boolean value of check if the list containing emails is not empty (lesser than 1)
-	:param bool is_phones_empty: takes the boolean value of check if the list containing phones is not empty (lesser than 1)
-	:param dict dict_of_options: dictionary of options that are used to find emails and phones
-	:return: result string
-	:rtype: str
-	"""
-
-
-	# basically - try every option if there are still options.
-
-	if (is_emails_empty or is_phones_empty) and (all(dict_of_options.values()) is False) : # if there are no emails or no values and there are still options
-		return "trying"
-	else:
-		if (is_phones_empty or is_emails_empty) and all(dict_of_options.values()): # if there are no emails or no values and there are no options left
-			return "got_some"
-		
-		elif (not is_phones_empty and not is_emails_empty):
-			return "got_all"
-	
-
-def save_search_results(link_list):
-	with open(path_of_folder + "SearchResults.txt", 'w') as file:
-		for x in link_list:
-			file.write(x)
-			file.write("\n")
-		file.close()
-
-def parse_through_sites(site_list):
-
-	data_list = []
-	counter = 0
-
-	for site in site_list:
-		#time.sleep(1)
-		print(site)
-		site_html = get_html_from_url(site)
-		if site_html is not None:
-			site_soup = BeautifulSoup(site_html, 'html.parser')
-			data_list.append(parse_site(site_soup, site))
-
-	return data_list
-
-def make_folder():
-
-	if not os.path.isdir(path_of_folder):
-		os.mkdir(path_of_folder)
-
-def write_data(data, search_name, number_of_links, extension=".csv"):
-
-	phones_unfound = 0
-	emails_unfound = 0
-
-	if extension == ".txt":
-		with open(path_of_folder + 'results.txt', 'w') as file:
-			for dc in data:
-				emails = dc['emails']
-				phones = dc['phones']
-				url = dc['url']
-
-
-				if (emails and phones) != []: 
-					file.write("Emails | Phones from {0}: {1} | {2}".format(url, emails, phones))
-					file.write("\n")
-
-			file.close()
-
-	elif extension == ".csv":
-		name = "results of +{0}+".format(search_name)
-		with open(path_of_folder + name + ".csv", mode='w', newline='') as csv_file:
-			fieldnames = ['site', 'emails', 'phones']
-			writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-			writer.writeheader()
-
-			for dc in data:
-				emails = dc['emails']
-				phones = dc['phones']
-				if is_empty(phones):
-					phones_unfound += 1
-				if is_empty(emails):
-					emails_unfound += 1
-				url = dc['url']
-				for number in phones:
-					if "\xa0" in number: # TODO - SOMETIMES NUMBER IS SAVED WITH THIS SYMBOL ONLY, CANNOT DELETE, BECAUSE WE DELETE THE NUMBER!
-						phones.remove(number)
-				writer.writerow({'site': url, 'emails': emails, 'phones': phones})
-
-			csv_file.close()
-
-	print("Emails unfound: {0}/{1}\nPhones unfound: {2}/{1}".format(emails_unfound, number_of_links, phones_unfound))
-
-
-def write_debug_data(data, search_name, extension=".csv"):
-
-	print("DATA:")
-	for d in data.values():
-		print(remove_duplicates(d))
-
-	if extension == ".csv":
-		name = "results of +{0}+".format(search_name)
-		with open(path_of_folder + name + ".csv", mode='w', newline='') as csv_file:
-			fieldnames = ['site', 'emails', 'phones']
-			writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-			writer.writeheader()
-			emails = data['emails']
-			phones = data['phones']
-			url = data['url']
-			if (emails and phones) != []:
-				writer.writerow({'site': url, 'emails': emails, 'phones': phones})
-			else:
-				writer.writerow({'site': url, 'emails': None, 'phones': None})
-
-		csv_file.close()
-
-def main():
-
-	search = get_search_name()
-
-	quoted_search = "{0}{1}{2}".format(quote(search), quote(" "), quote(city))
-	unquoted_search = "{0} {1}".format(search, city)
-
-	links = simple_get_links(unquoted_search, 110)
-
-	print("Finding emails and phones...")
-
-	data = parse_through_sites(links)
-
-	print("Writing file...")
-
-	make_folder()
-	write_data(data, unquoted_search)
-
-	print("File written.")
-
-	#save_search_results(links)
-	time.sleep(3)
-
-
-def debug():
-
-	sample_site = "https://hotelkossak.pl/"
-	sample_site_html = get_html_from_url(sample_site)
-
-	sample_soup = BeautifulSoup(sample_site_html, 'html.parser')
-
-	data = parse_site(sample_soup, sample_site)
-
-	print(data)
+		return False
 
 def crawler_debug():
 
@@ -374,21 +250,6 @@ def crawler_debug():
 	crawler.crawl()
 	print(crawler.data)
 
-
-def debug_search_parse_write():
-
-	search = "agencje reklamowe kraków"
-
-	number_of_links = 70
-
-	links = simple_get_links(search, number_of_links)
-
-	print("Finding emails and phones...")
-	data = parse_through_sites(links)
-	print("Writing file...")
-	make_folder()
-	write_data(data, search, number_of_links)
-	print("File written.")
 
 if __name__ == '__main__':
 	#main()
