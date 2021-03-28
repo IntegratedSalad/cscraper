@@ -1,11 +1,15 @@
 import asyncio
-import urllib.request, os.path, csv, re, googlesearch, time
+import os.path, csv, re, googlesearch, time, urllib
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 
 city = "kraków" # dmake that optional
 path_of_folder = os.path.dirname(os.path.realpath(__file__)) + '/data/'
+phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
+mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
 
+REG_PHONE = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
+REG_MAIL = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
 
 class Crawler:
 
@@ -14,6 +18,8 @@ class Crawler:
 
 	No - CrawlerManager deploys Crawlers that focus on each site concurrently.
 	They queue as many tasks as they can concurrently.
+
+	Without them operating concurrently - 20 sites (one query) take 40 seconds.
 
 	"""
 
@@ -44,7 +50,7 @@ class Crawler:
 			if site_html is not None:
 				site_soup = BeautifulSoup(site_html, 'html.parser')
 
-				self.data[site] = self.parse_site(site_soup, site)
+				self.data[site] = self.parse_site_new(site_soup, site)
 
 
 	def get_html_from_url(self, url):
@@ -90,6 +96,63 @@ class Crawler:
 				#print(str(e))
 				#print(url)
 				exit(0)
+
+	def parse_site_new(self, soup, url):
+
+		emails = []
+		phones = []
+
+		email_protection = False
+
+		contact_site_soup, _ = self.search_through_a_tag_func(url, soup)
+
+		if contact_site_soup is not None:
+			emails, phones = self.look_for_contact_data(contact_site_soup, url) # the url stays the same
+
+		return {'emails': self.remove_duplicates(emails), 'phones': self.remove_duplicates(phones), 'url': url}
+
+
+		# if contact_site_soup is not None:
+		# 	# why check for email protection exclusively? now, when test results in true, we have to iterate over <a> tag again
+		# 	if not self.check_for_email_protection(contact_site_soup): 
+
+		# 	else:
+		# 		emails = ["Protected"]
+
+
+	def look_for_contact_data(self, soup, url):
+
+		"""
+
+		Returns emails and phones
+		"""
+
+		emails = []
+		phones = []
+
+
+		mail_pattern = re.compile(REG_MAIL)
+		phone_pattern = re.compile(REG_PHONE)
+
+
+		for a_tag in soup.find_all('a'):
+
+			href = a_tag.get('href')
+
+			if href is not None:
+				phone = phone_pattern.findall(href)
+				if phones is not None:
+					phones.extend(phone)
+
+				if "email-protection" not in href:
+
+					email = mail_pattern.findall(href)
+					emails.extend(email)
+			else:
+				emails.append("Protected")
+
+		return emails, phones
+
 
 	def parse_site(self, soup, url):
 
@@ -159,6 +222,7 @@ class Crawler:
 
 		# TODO:
 		# catch exceptions - test on various sites
+		# change the order of arguments
 
 
 		try:
@@ -185,10 +249,23 @@ class Crawler:
 
 
 	def crawl(self):
+
+		start_links = time.perf_counter()
 		self.get_links()
+		end_links = time.perf_counter() - start_links
+
 		self.create_data_dict()
 
+		start_parse = time.perf_counter()
 		self.parse_through_sites()
+		end_parse = time.perf_counter() - start_parse
+
+		print(f"Getting links took: {end_links}s\nParsing took: {end_parse}s")
+
+	def crawl_one_site(self, url):
+		html = self.get_html_from_url(url)
+		soup = BeautifulSoup(html, 'html.parser')
+		return self.parse_site_new(soup, url)
 
 
 	@staticmethod
@@ -247,6 +324,7 @@ class Crawler:
 def crawler_debug():
 
 	crawler = Crawler("hotel kraków", 20)
+	# print(crawler.crawl_one_site("https://hotelkossak.pl"))
 	crawler.crawl()
 	print(crawler.data)
 
@@ -269,4 +347,13 @@ if __name__ == '__main__':
 #	Add data to search RRRR/MM/DD ()
 #	Wyświetlić ile znalazło z ilu wyszukało()
 #	Shorten that phone regex by placing 'or" in different places.
+
+
+
+# Most important changes:
+# 1. parse_site() parses only through <a> tag, related to contact data, NOT the whole html document.
+
+
+
+
 

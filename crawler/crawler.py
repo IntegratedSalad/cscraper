@@ -1,6 +1,7 @@
 import urllib.request, os.path, csv, re, googlesearch, time
 from urllib.parse import quote
 from bs4 import BeautifulSoup
+import time
 
 city = "kraków" # dmake that optional
 path_of_folder = os.path.dirname(os.path.realpath(__file__)) + '/data/'
@@ -182,10 +183,19 @@ class Crawler:
 
 
 	def crawl(self):
+
+		start_links = time.perf_counter()
 		self.get_links()
+		end_links = time.perf_counter() - start_links
+
 		self.create_data_dict()
 
+		start_parse = time.perf_counter()
 		self.parse_through_sites()
+		end_parse = time.perf_counter() - start_parse
+
+		print(f"Getting links took: {end_links}s\nParsing took: {end_parse}s")
+
 
 
 	@staticmethod
@@ -369,10 +379,12 @@ def debug():
 	print(data)
 
 def crawler_debug():
-
 	crawler = Crawler("hotel kraków", 20)
 	crawler.crawl()
-	print(crawler.data)
+	# print(crawler.data)
+
+
+	# 100 links - 6s geeting links, 92s parsing.
 
 
 def debug_search_parse_write():
