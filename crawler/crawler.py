@@ -36,7 +36,6 @@ class Crawler:
 	def parse_through_sites(self):
 
 		for site in self.sites:
-			print(site)
 			site_html = self.get_html_from_url(site)
 			if site_html is not None:
 				site_soup = BeautifulSoup(site_html, 'html.parser')
@@ -136,8 +135,8 @@ class Crawler:
 						options[option] = True
 						url = new_url
 						soup = new_soup
-						emails = mail_pattern.findall(new_soup.prettify())
-						phones = phone_pattern.findall(new_soup.prettify())
+						emails.extend(mail_pattern.findall(new_soup.prettify()))
+						phones.extend(phone_pattern.findall(new_soup.prettify()))
 				else:
 					break
 
@@ -194,7 +193,20 @@ class Crawler:
 		self.parse_through_sites()
 		end_parse = time.perf_counter() - start_parse
 
+		print(self.data)
+
 		print(f"Getting links took: {end_links}s\nParsing took: {end_parse}s")
+
+		empty_phones = 0
+		empty_mails = 0
+
+		for _, val in self.data.items():
+			if len(val['emails']) < 1:
+				empty_mails += 1
+			if len(val['phones']) < 1:
+				empty_phones += 1
+
+		print(f"Empty mails: {empty_mails} Empty phones: {empty_phones}")
 
 
 
@@ -382,6 +394,9 @@ def crawler_debug():
 	crawler = Crawler("hotel kraków", 20)
 	crawler.crawl()
 	# print(crawler.data)
+
+
+
 
 
 	# 100 links - 6s geeting links, 92s parsing.

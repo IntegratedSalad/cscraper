@@ -1,9 +1,9 @@
 import asyncio
-import os.path, csv, re, googlesearch, time, urllib
+import os.path, csv, re, googlesearch, time, urllib.request
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 
-city = "kraków" # dmake that optional
+city = "kraków" # make that optional
 path_of_folder = os.path.dirname(os.path.realpath(__file__)) + '/data/'
 phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
 mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
@@ -45,13 +45,18 @@ class Crawler:
 	def parse_through_sites(self):
 
 		for site in self.sites:
-			print(site)
 			site_html = self.get_html_from_url(site)
 			if site_html is not None:
 				site_soup = BeautifulSoup(site_html, 'html.parser')
+				self.data[site] = self.parse_site(site_soup, site)
 
+	def parse_through_sites_new(self):
+
+		for site in self.sites:
+			site_html = self.get_html_from_url(site)
+			if site_html is not None:
+				site_soup = BeautifulSoup(site_html, 'html.parser')
 				self.data[site] = self.parse_site_new(site_soup, site)
-
 
 	def get_html_from_url(self, url):
 
@@ -104,55 +109,27 @@ class Crawler:
 
 		email_protection = False
 
-		contact_site_soup, _ = self.search_through_a_tag_func(url, soup)
-
-		if contact_site_soup is not None:
-			emails, phones = self.look_for_contact_data(contact_site_soup, url) # the url stays the same
-
-		return {'emails': self.remove_duplicates(emails), 'phones': self.remove_duplicates(phones), 'url': url}
-
-
-		# if contact_site_soup is not None:
-		# 	# why check for email protection exclusively? now, when test results in true, we have to iterate over <a> tag again
-		# 	if not self.check_for_email_protection(contact_site_soup): 
-
-		# 	else:
-		# 		emails = ["Protected"]
-
-
-	def look_for_contact_data(self, soup, url):
-
-		"""
-
-		Returns emails and phones
-		"""
-
-		emails = []
-		phones = []
-
-
 		mail_pattern = re.compile(REG_MAIL)
 		phone_pattern = re.compile(REG_PHONE)
 
+		# find emails and phones on the main page
+		s = time.perf_counter()
+		emails.extend(mail_pattern.findall(str(soup)))
+		phones.extend(phone_pattern.findall(str(soup)))
 
-		for a_tag in soup.find_all('a'):
+		# instead of trying to find contact page, we will add a "/contact or /kontakt page"
 
-			href = a_tag.get('href')
+		contact_url = os.path.join(url, "kontakt")
+		contact_soup = BeautifulSoup(self.get_html_from_url(contact_url), 'html.parser')
 
-			if href is not None:
-				phone = phone_pattern.findall(href)
-				if phones is not None:
-					phones.extend(phone)
+		email_protection = self.check_for_email_protection(contact_soup)
+		if not email_protection:
+			emails.extend(mail_pattern.findall(str(contact_soup)))
+			phones.extend(phone_pattern.findall(str(contact_soup)))
+			e = time.perf_counter() - s
+			print(e)
 
-				if "email-protection" not in href:
-
-					email = mail_pattern.findall(href)
-					emails.extend(email)
-			else:
-				emails.append("Protected")
-
-		return emails, phones
-
+		return {'emails': self.remove_duplicates(emails), 'phones': self.remove_duplicates(phones), 'url': url}
 
 	def parse_site(self, soup, url):
 
@@ -181,8 +158,11 @@ class Crawler:
 
 		#print(html_document)
 
-		emails = mail_pattern.findall(html_document) 	# first try
-		phones = phone_pattern.findall(html_document)	# first try
+		emails = []
+		phones = []
+		s = time.perf_counter()
+		emails.extend(mail_pattern.findall(html_document)) 	# first try
+		phones.extend(phone_pattern.findall(html_document))	# first try
 
 		email_protection = False
 
@@ -204,6 +184,9 @@ class Crawler:
 						soup = new_soup
 						emails = mail_pattern.findall(new_soup.prettify())
 						phones = phone_pattern.findall(new_soup.prettify())
+						e = time.perf_counter() - s
+						print(e)
+
 				else:
 					break
 
@@ -218,6 +201,11 @@ class Crawler:
 
 		"""
 		This function searches for "kontakt" or "contact" site.
+
+		It is very slow to parse whole site just to find a site that is basically a '/kontakt | /contact' addition to ther base url, which html 
+		we are parsing.
+		But we have to find if "look_for_contact_data(self, soup, url):" method is not getting less data than the old one.
+
 		"""
 
 		# TODO:
@@ -248,7 +236,7 @@ class Crawler:
 		return None, ""
 
 
-	def crawl(self):
+	def crawl_old(self):
 
 		start_links = time.perf_counter()
 		self.get_links()
@@ -261,6 +249,65 @@ class Crawler:
 		end_parse = time.perf_counter() - start_parse
 
 		print(f"Getting links took: {end_links}s\nParsing took: {end_parse}s")
+
+		empty_phones = 0
+		empty_mails = 0
+
+		try:
+			for _, val in self.data.items():
+				if len(val['emails']) < 1:
+					empty_mails += 1
+				if len(val['phones']) < 1:
+					empty_phones += 1
+		except TypeError:
+			pass
+
+		print(f"Empty mails: {empty_mails} Empty phones: {empty_phones}")
+
+		for _, val in self.data.items():
+			if val is not None:
+				emails = val['emails']
+				phones = val['phones']
+				url = val['url']
+
+			print(f"{url}: EMAILS: {emails} PHONES: {phones}")
+
+	def crawl_new(self):
+
+		start_links = time.perf_counter()
+		self.get_links()
+		end_links = time.perf_counter() - start_links
+
+		self.create_data_dict()
+
+		start_parse = time.perf_counter()
+		self.parse_through_sites_new()
+		end_parse = time.perf_counter() - start_parse
+
+		print(f"Getting links took: {end_links}s\nParsing took: {end_parse}s")
+
+		empty_phones = 0
+		empty_mails = 0
+
+		try:
+			for _, val in self.data.items():
+				if len(val['emails']) < 1:
+					empty_mails += 1
+				if len(val['phones']) < 1:
+					empty_phones += 1
+		except TypeError:
+			pass
+
+		print(f"Empty mails: {empty_mails} Empty phones: {empty_phones}")
+
+		for _, val in self.data.items():
+			if val is not None:
+				emails = val['emails']
+				phones = val['phones']
+				url = val['url']
+
+			print(f"{url}: EMAILS: {emails} PHONES: {phones}")
+
 
 	def crawl_one_site(self, url):
 		html = self.get_html_from_url(url)
@@ -323,10 +370,13 @@ class Crawler:
 
 def crawler_debug():
 
-	crawler = Crawler("hotel kraków", 20)
-	# print(crawler.crawl_one_site("https://hotelkossak.pl"))
-	crawler.crawl()
-	print(crawler.data)
+
+	crawler_old = Crawler("fryzjer krakow", 20)
+	crawler_new = Crawler("fryzjer krakow", 20)
+	print("OLD:")
+	crawler_old.crawl_old()
+	print("NEW:")
+	crawler_new.crawl_new()
 
 
 if __name__ == '__main__':
