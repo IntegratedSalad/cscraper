@@ -72,7 +72,6 @@ def get_html_from_url(url):
 				file.write(str(e))
 				file.write("\n")
 				file.write(url)
-				file.close()
 			#print("Something went wrong:")
 			#print(str(e))
 			#print(url)
