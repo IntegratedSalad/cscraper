@@ -1,9 +1,15 @@
 import urllib.request, os.path, csv, re, googlesearch, time
 from urllib.parse import quote
 from bs4 import BeautifulSoup
+import argparse
 
 city = "kraków" # make that optional
-path_of_folder = os.path.dirname(os.path.realpath(__file__)) + '/data/'
+path_of_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
+
+parser = argparse.ArgumentParser(description="Retrieve contact data from sites, from a google search.")
+parser.add_argument('-q', '--query', help="provide a search query.")
+parser.add_argument('-d', '--debug', help="display additional information.", action="store_true")
+parser.add_argument('-n', '--num', help="provide a number of searches (defaults to 20).", type=int)
 
 def get_search_name():
 	"""
@@ -49,6 +55,11 @@ def get_html_from_url(url):
 			html = google_binary.read().decode('utf-8')
 			return html
 	except Exception as e:
+<<<<<<< Updated upstream
+=======
+		if parser.parse_args().debug:
+			print(e)
+>>>>>>> Stashed changes
 		if "404" in str(e):
 			return "404"
 		elif "403" in str(e):
@@ -326,12 +337,14 @@ def write_debug_data(data, search_name, extension=".csv"):
 
 def main():
 
-	search = get_search_name()
+	# search = get_search_name()
 
-	quoted_search = "{0}{1}{2}".format(quote(search), quote(" "), quote(city))
-	unquoted_search = "{0} {1}".format(search, city)
+	args = parser.parse_args()
 
-	links = simple_get_links(unquoted_search, 110)
+	# quoted_search = "{0}{1}{2}".format(quote(args.name), quote(" "), quote(city))
+	unquoted_search = "{0} {1}".format(args.query, city)
+
+	links = simple_get_links(unquoted_search, 20)
 
 	print("Finding emails and phones...")
 
@@ -389,7 +402,6 @@ if __name__ == '__main__':
 #	Multiple searches.
 #	Custom number of Google results - np. chce wyszukac pola golfowe, domy weselne i kluby nocne. ()
 # 	Jeśli crash - to nazwa pliku z nazwa wyszukiwania ()
-#	Wpisując "cipsko" jest tylko jeden e-mail i te same telefony do każdego wyszukiwania. ()
 #	Add exceptions to search. ()
 #	E-mail feedback from application ()
 #	Add data to search RRRR/MM/DD ()
