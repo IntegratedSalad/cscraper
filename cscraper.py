@@ -1,46 +1,22 @@
-import urllib.request, os.path, csv, re, googlesearch, time
+"""
+This module provides basic functionality of scraping, retrieving and saving contact data (email addressess and phone numbers) from
+a user provided query.
+
+
+
+"""
+
+
+import urllib.request, os.path, csv, re, googlesearch
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 import argparse
 
-city = "kraków" # make that optional
-path_of_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
+# add this to a new file - cmdcscrape - cscraper.py should be just a module of functions
+# write a class.
 
-parser = argparse.ArgumentParser(description="Retrieve contact data from sites, from a google search.")
-parser.add_argument('-q', '--query', help="provide a search query.")
-parser.add_argument('-d', '--debug', help="display additional information.", action="store_true")
-parser.add_argument('-n', '--num', help="provide a number of searches (defaults to 20).", type=int)
 
-def get_search_name():
-	"""
-	Get a word that will be entered in the google search.
-	"""
-
-	got = False
-
-	# TODO: add custom search num after a comma. or pipes - ... |warszawa|150
-
-	while not got:
-		search = input("What type of company are you searching for? >")
-
-		goode_yes_no = input("Searching for: '{0}' - is that ok? (Y) (N) (Q) >".format(search + " " + city))
-
-		if goode_yes_no.lower() == 'y':
-			print("Searching google...")
-			return search
-
-		elif goode_yes_no.lower() == 'n':
-			print("Ok, let's start again:")
-			continue
-
-		elif goode_yes_no.lower() == 'q':
-			exit(0)
-
-		else:
-			print("y or n or q only")
-			continue
-
-def get_html_from_url(url):
+def get_html_from_url(url, path_of_folder):
 
 	headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
 				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -55,11 +31,8 @@ def get_html_from_url(url):
 			html = google_binary.read().decode('utf-8')
 			return html
 	except Exception as e:
-<<<<<<< Updated upstream
-=======
 		if parser.parse_args().debug:
 			print(e)
->>>>>>> Stashed changes
 		if "404" in str(e):
 			return "404"
 		elif "403" in str(e):
@@ -123,8 +96,6 @@ def parse_site(soup, url):
 	html_document = soup.prettify() # it might be slow, because of searching through the whole html document - maybe reduce that to only "a" tags.
 
 	first_url = url
-
-	#print(html_document)
 
 	emails = mail_pattern.findall(html_document) 	# first try
 	phones = phone_pattern.findall(html_document)	# first try
@@ -242,7 +213,7 @@ def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
 def remove_duplicates(list_of_duplicates):
 	return list(dict.fromkeys(list_of_duplicates))
 
-def save_search_results(link_list):
+def save_search_results(link_list, path_of_folder):
 	with open(path_of_folder + "SearchResults.txt", 'w') as file:
 		for x in link_list:
 			file.write(x)
@@ -264,18 +235,18 @@ def parse_through_sites(site_list):
 
 	return data_list
 
-def make_folder():
+def make_folder(path_of_folder):
 
 	if not os.path.isdir(path_of_folder):
 		os.mkdir(path_of_folder)
 
-def write_data(data, search_name, number_of_links, extension=".csv"):
+def write_data(data, search_name, number_of_links, path_of_folder, extension=".csv"):
 
 	phones_unfound = 0
 	emails_unfound = 0
 
 	if extension == ".txt":
-		with open(path_of_folder + 'results.txt', 'w') as file:
+		with open(os.path.join(path_of_folder, "results.txt"), 'w') as file:
 			for dc in data:
 				emails = dc['emails']
 				phones = dc['phones']
@@ -313,7 +284,7 @@ def write_data(data, search_name, number_of_links, extension=".csv"):
 	print("Emails unfound: {0}/{1}\nPhones unfound: {2}/{1}".format(emails_unfound, number_of_links, phones_unfound))
 
 
-def write_debug_data(data, search_name, extension=".csv"):
+def write_debug_data(data, search_name, path_of_folder, extension=".csv"):
 
 	print("DATA:")
 	for d in data.values():
@@ -334,81 +305,3 @@ def write_debug_data(data, search_name, extension=".csv"):
 				writer.writerow({'site': url, 'emails': None, 'phones': None})
 
 		csv_file.close()
-
-def main():
-
-	# search = get_search_name()
-
-	args = parser.parse_args()
-
-	# quoted_search = "{0}{1}{2}".format(quote(args.name), quote(" "), quote(city))
-	unquoted_search = "{0} {1}".format(args.query, city)
-
-	links = simple_get_links(unquoted_search, 20)
-
-	print("Finding emails and phones...")
-
-	data = parse_through_sites(links)
-
-	print("Writing file...")
-
-	make_folder()
-	write_data(data, unquoted_search)
-
-	print("File written.")
-
-	#save_search_results(links)
-	time.sleep(3)
-
-
-def debug():
-
-	sample_site = "https://agencjailuzjonistow.pl/?fbclid=IwAR1_xZjY5hQTOKOnm-seHyd24G3arOFQvzPMuyUgU7GtUY0wjnzeQv3t9vA"
-	sample_site_html = get_html_from_url(sample_site)
-
-	sample_soup = BeautifulSoup(sample_site_html, 'html.parser')
-
-	data = parse_site(sample_soup, sample_site)
-
-	print(data)
-
-
-
-def debug_search_parse_write():
-
-	search = "agencje reklamowe kraków"
-
-	number_of_links = 70
-
-	links = simple_get_links(search, number_of_links)
-
-	print("Finding emails and phones...")
-	data = parse_through_sites(links)
-	print("Writing file...")
-	make_folder()
-	write_data(data, search, number_of_links)
-	print("File written.")
-
-if __name__ == '__main__':
-	#main()
-	debug()
-	#debug_search_parse_write()
-
-
-# https://python-googlesearch.readthedocs.io/en/latest/
-
-# Scraper 2.0:
-#	Poprawiony wyglad danych wyrzucanych ()
-#	Multiple searches.
-#	Custom number of Google results - np. chce wyszukac pola golfowe, domy weselne i kluby nocne. ()
-# 	Jeśli crash - to nazwa pliku z nazwa wyszukiwania ()
-#	Add exceptions to search. ()
-#	E-mail feedback from application ()
-#	Add data to search RRRR/MM/DD ()
-#	Wyświetlić ile znalazło z ilu wyszukało()
-#	Shorten that phone regex by placing 'or" in different places.
-
-# Albo zamiast robić jakiekolwiek poprawianie konsolowej aplikacji, skupie sie na samym wyszukiwaniu, wyrzucaniu danych a cała user input będzie poprzez GUI w TkInter.
-
-# rename this module to "contactsfinder" and learn how to freeze multiple files with pyinstaller. Add file contactsfindergui and there work with tkinter.
-# maybe threading with searching multiple entries? one thread does "domy weselne" and other e.g "hotele"
