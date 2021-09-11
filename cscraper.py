@@ -2,6 +2,11 @@
 This module provides basic functionality of scraping, retrieving and saving contact data (email addressess and phone numbers) from
 a user provided query.
 
+The usual execution proceeds as follows:
+
+1. User inputs a query,
+2. URL's are retrieved from google's search results,
+3. These sites are then parsed, looking for e-mails and phones.
 
 
 """
@@ -12,11 +17,12 @@ from urllib.parse import quote
 from bs4 import BeautifulSoup
 import argparse
 
+from typing import List
+
 # add this to a new file - cmdcscrape - cscraper.py should be just a module of functions
 # write a class.
 
-
-def get_html_from_url(url, path_of_folder):
+def get_html_from_url(url, debug=False):
 
 	headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
 				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -31,7 +37,7 @@ def get_html_from_url(url, path_of_folder):
 			html = google_binary.read().decode('utf-8')
 			return html
 	except Exception as e:
-		if parser.parse_args().debug:
+		if debug:
 			print(e)
 		if "404" in str(e):
 			return "404"
@@ -52,16 +58,14 @@ def get_html_from_url(url, path_of_folder):
 		elif "500" in str(e):
 			return ""
 		else:
-			with open(path_of_folder + "crash.txt", 'w') as file:
-				file.write(str(e))
-				file.write("\n")
-				file.write(url)
-			#print("Something went wrong:")
-			#print(str(e))
-			#print(url)
-			exit(0)
+			return f"!E: {str(e)}\n{url}"
 
 def simple_get_links(search_string, number_of_search_results):
+
+	"""
+	Search google and retrieve URL's.
+
+	"""
 
 	return [link for link in googlesearch.search(search_string,
 								tld="pl",
@@ -70,7 +74,7 @@ def simple_get_links(search_string, number_of_search_results):
 								pause=2.0,
 								stop=number_of_search_results,
 								user_agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0'
-								) if not ("youtube" in link or "facebook" in link or "olx" in link or "allegro" in link or "sprzedajemy" in link or "gumtree" in link)] # here add exceptions in list
+								) if not ("youtube" in link or "facebook" in link or "olx" in link or "allegro" in link or "sprzedajemy" in link or "gumtree" in link)] # here add exceptions in list or in file
 
 def parse_site(soup, url):
 
@@ -79,6 +83,8 @@ def parse_site(soup, url):
 
 	mail_pattern = re.compile(mail_regex)
 	phone_pattern = re.compile(phone_regex)
+
+	""" Pass search functions as *args, and make dict programatically.  """
 
 	options = { # this dict is redundant, for loop assures that it will try only once for each option.
 
@@ -164,9 +170,7 @@ def search_through_a_tag_func(url, soup):
 
 	try:
 		for a_tag in soup.find_all('a'):
-			#print(a_tag)
 			href = a_tag.get('href')
-			#print(href)
 			if href is not None:
 				if "email-protection" in a_tag.get('href'):
 					return None, ""
@@ -195,11 +199,12 @@ def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
 	:param dict dict_of_options: dictionary of options that are used to find emails and phones
 	:return: result string
 	:rtype: str
+
 	"""
 
 
-	# basically - try every option if there are still options.
-
+	''' Basically - try every option if there are still options. '''
+ 
 	if (is_emails_empty or is_phones_empty) and (all(dict_of_options.values()) is False) : # if there are no emails or no values and there are still options
 		return "trying"
 	else:
@@ -218,16 +223,15 @@ def save_search_results(link_list, path_of_folder):
 		for x in link_list:
 			file.write(x)
 			file.write("\n")
-		file.close()
 
-def parse_through_sites(site_list):
+def parse_through_sites(site_list, debug=False):
 
 	data_list = []
 	counter = 0
 
 	for site in site_list:
-		#time.sleep(1)
-		print(site)
+		if debug: 
+			print(site)
 		site_html = get_html_from_url(site)
 		if site_html is not None:
 			site_soup = BeautifulSoup(site_html, 'html.parser')
@@ -240,7 +244,7 @@ def make_folder(path_of_folder):
 	if not os.path.isdir(path_of_folder):
 		os.mkdir(path_of_folder)
 
-def write_data(data, search_name, number_of_links, path_of_folder, extension=".csv"):
+def write_info_txt(data, search_name, number_of_links, path_of_folder):
 
 	phones_unfound = 0
 	emails_unfound = 0
@@ -252,36 +256,37 @@ def write_data(data, search_name, number_of_links, path_of_folder, extension=".c
 				phones = dc['phones']
 				url = dc['url']
 
-
 				if (emails and phones) != []: 
 					file.write("Emails | Phones from {0}: {1} | {2}".format(url, emails, phones))
 					file.write("\n")
 
-			file.close()
 
-	elif extension == ".csv":
-		name = "results of +{0}+".format(search_name)
-		with open(path_of_folder + name + ".csv", mode='w', newline='') as csv_file:
-			fieldnames = ['site', 'emails', 'phones']
-			writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-			writer.writeheader()
+def write_to_csv(data, search_name, number_of_links, path_of_folder, debug=True):
 
-			for dc in data:
-				emails = dc['emails']
-				phones = dc['phones']
-				if is_empty(phones):
-					phones_unfound += 1
-				if is_empty(emails):
-					emails_unfound += 1
-				url = dc['url']
-				for number in phones:
-					if "\xa0" in number: # TODO - SOMETIMES NUMBER IS SAVED WITH THIS SYMBOL ONLY, CANNOT DELETE, BECAUSE WE DELETE THE NUMBER!
-						phones.remove(number)
-				writer.writerow({'site': url, 'emails': emails, 'phones': phones})
+	phones_unfound = 0
+	emails_unfound = 0
 
-			csv_file.close()
+	name = f"results of +{search_name}+"
+	with open(os.path.join(path_of_folder, f"{name}.csv"), mode='w', newline='') as csv_file:
+		fieldnames = ['site', 'emails', 'phones']
+		writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+		writer.writeheader()
 
-	print("Emails unfound: {0}/{1}\nPhones unfound: {2}/{1}".format(emails_unfound, number_of_links, phones_unfound))
+		for dc in data:
+			emails = dc['emails']
+			phones = dc['phones']
+			if is_empty(phones):
+				phones_unfound += 1
+			if is_empty(emails):
+				emails_unfound += 1
+			url = dc['url']
+			for number in phones:
+				if "\xa0" in number: # TODO - SOMETIMES NUMBER IS SAVED WITH THIS SYMBOL ONLY, CANNOT DELETE, BECAUSE WE DELETE THE NUMBER!
+					phones.remove(number)
+			writer.writerow({'site': url, 'emails': emails, 'phones': phones})
+
+	if debug:
+		print(f"Emails unfound: {emails_unfound}/{number_of_links}\nPhones unfound: {phones_unfound}/{number_of_links}")
 
 
 def write_debug_data(data, search_name, path_of_folder, extension=".csv"):
@@ -292,7 +297,7 @@ def write_debug_data(data, search_name, path_of_folder, extension=".csv"):
 
 	if extension == ".csv":
 		name = "results of +{0}+".format(search_name)
-		with open(path_of_folder + name + ".csv", mode='w', newline='') as csv_file:
+		with open(os.path.join(path_of_folder, name, ".csv"), mode='w', newline='') as csv_file:
 			fieldnames = ['site', 'emails', 'phones']
 			writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 			writer.writeheader()
@@ -303,5 +308,3 @@ def write_debug_data(data, search_name, path_of_folder, extension=".csv"):
 				writer.writerow({'site': url, 'emails': emails, 'phones': phones})
 			else:
 				writer.writerow({'site': url, 'emails': None, 'phones': None})
-
-		csv_file.close()
