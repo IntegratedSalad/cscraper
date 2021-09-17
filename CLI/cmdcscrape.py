@@ -1,4 +1,10 @@
-import cscraper, time, os, argparse
+import time, os, argparse
+
+
+import sys
+sys.path.append("..")
+import cscraper
+
 
 path_of_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
 

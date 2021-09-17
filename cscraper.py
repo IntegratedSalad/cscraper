@@ -203,7 +203,7 @@ def parse_result(is_emails_empty, is_phones_empty, dict_of_options):
 
 	''' Basically - try every option if there are still options. '''
  
-	if (is_emails_empty or is_phones_empty) and (all(dict_of_options.values()) is False) : # if there are no emails or no values and there are still options
+	if (is_emails_empty or is_phones_empty) and (all(dict_of_options.values()) is False): # if there are no emails or no values and there are still options
 		return "trying"
 	else:
 		if (is_phones_empty or is_emails_empty) and all(dict_of_options.values()): # if there are no emails or no values and there are no options left
