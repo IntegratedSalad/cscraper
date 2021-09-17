@@ -6,23 +6,22 @@ The usual execution proceeds as follows:
 
 1. User inputs a query,
 2. URL's are retrieved from google's search results,
-3. These sites are then parsed, looking for e-mails and phones.
+3. These sites are then parsed for e-mails and phones.
 
 
 """
-
 
 import urllib.request, os.path, csv, re, googlesearch
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 import argparse
 
-from typing import List
+from typing import List, Callable
 
 # add this to a new file - cmdcscrape - cscraper.py should be just a module of functions
 # write a class.
 
-def get_html_from_url(url, debug=False):
+def get_html_from_url(url: str, debug=False) -> str:
 
 	headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
 				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -60,7 +59,7 @@ def get_html_from_url(url, debug=False):
 		else:
 			return f"!E: {str(e)}\n{url}"
 
-def simple_get_links(search_string, number_of_search_results):
+def simple_get_links(search_string: str, number_of_search_results: int) -> List[str]:
 
 	"""
 	Search google and retrieve URL's.
@@ -76,7 +75,7 @@ def simple_get_links(search_string, number_of_search_results):
 								user_agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0'
 								) if not ("youtube" in link or "facebook" in link or "olx" in link or "allegro" in link or "sprzedajemy" in link or "gumtree" in link)] # here add exceptions in list or in file
 
-def parse_site(soup, url):
+def parse_site(soup: BeautifulSoup, url: str):
 
 	phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
 	mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
@@ -140,7 +139,7 @@ def is_empty(list):
 	return len(list) < 1
 
 
-def use_option(option, func, url, soup):
+def use_option(option: bool, func: Callable, url: str, soup: BeautifulSoup):
 	# all functions return new search
 	if not option: # if it's false - not used yet
 		new_soup, new_url = func(url, soup)
@@ -148,7 +147,7 @@ def use_option(option, func, url, soup):
 	else:
 		return None
 
-def check_for_email_protection(soup):
+def check_for_email_protection(soup: BeautifulSoup):
 
 	for a_tag in soup.find_all('a'):
 		href = a_tag.get('href')
@@ -166,7 +165,6 @@ def search_through_a_tag_func(url, soup):
 
 	# TODO:
 	# catch exceptions - test on various sites
-
 
 	try:
 		for a_tag in soup.find_all('a'):
