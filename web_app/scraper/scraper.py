@@ -8,7 +8,7 @@ import urllib.request, os.path, csv, re, googlesearch
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 
-from typing import List, Callable
+from typing import List, Callable, Tuple
 
 from utils import *
 
@@ -57,7 +57,7 @@ class Scraper():
 
 			return "" 
 
-	def get_links(self, search_string: str, number_of_search_results: int) -> List[str]:
+	def get_links(self, search_string: str, number_of_search_results: int, sites_to_ignore: Tuple[str]) -> List[str]:
 
 		"""
 		Search google and retrieve URL's.
@@ -71,7 +71,8 @@ class Scraper():
 								pause=2.0,
 								stop=number_of_search_results,
 								user_agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0'
-								) if not ("youtube" in link or "facebook" in link or "olx" in link or "allegro" in link or "sprzedajemy" in link or "gumtree" in link)] # here add exceptions in list or in file
+								) if not any(x in link for x in sites_to_ignore)]
+
 
 	def parse_site(self, soup: BeautifulSoup, url: str, *args):
 
@@ -240,7 +241,7 @@ class Scraper():
 
 		unqouted_search = f"{self.query} {city}"
 
-		links = self.get_links(unqouted_search, self.num_links)
+		links = self.get_links(unqouted_search, self.num_links, ("youtube", "facebook", "olx", "allegro", "sprzedajemy", "gumtree", "ceneo", "instagram"))
 
 		print("Finding emails and phones...")
 		data = self.parse_through_sites(links)
@@ -258,7 +259,7 @@ class Scraper():
 
 def main():
 
-	s_one = Scraper("teatr", 10, None, path_of_folder)
+	s_one = Scraper("mandzio", 10, None, path_of_folder)
 	s_one.scrape()
 
 if __name__ == '__main__':
