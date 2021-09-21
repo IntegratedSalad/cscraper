@@ -121,7 +121,7 @@ class Scraper():
 
 		return {'emails': remove_duplicates(emails), 'phones': remove_duplicates(phones), 'url': first_url}
 
-	def use_option(self, option: bool, func: Callable, url:str, soup: BeautifulSoup):
+	def use_option(self, option: bool, func: Callable, url: str, soup: BeautifulSoup):
 
 		# all functions return new search
 
