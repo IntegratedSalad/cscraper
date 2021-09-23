@@ -31,11 +31,13 @@ class Scraper():
        			'Accept-Language': 'pl-PL,pl;q=0.8'}
 
 
-	def __init__(self, query, num_links, region, path, write_error_file=False):
+	def __init__(self, query, num_links, region, path, mail_regex, phone_regex, write_error_file=False):
 		self.query = query
 		self.num_links = num_links
 		self.region = region
 		self.path = path
+		self.mail_regex = mail_regex
+		self.phone_regex = phone_regex
 		self.write_error_file = write_error_file
 		self.error_log = ""
 		self.id = id(self)
@@ -96,13 +98,10 @@ class Scraper():
 	#TODO: provide phone regex and mail regex
 	#TODO: provide a programatically created dictionary of tried/untried custom search functions
 	#TODO: provide a protocol for that functions - what they have to have and what they have to return
-	def parse_site(self, soup: BeautifulSoup, url: str):#phone_regex: str, mail_regex: str, *search_funcs):
+	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs):
 
-		phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
-		mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
-
-		mail_pattern = re.compile(mail_regex)
-		phone_pattern = re.compile(phone_regex)
+		mail_pattern = re.compile(self.mail_regex)
+		phone_pattern = re.compile(self.phone_regex)
 
 		options = {"search_through_a_tag": False}
 
@@ -282,7 +281,10 @@ class Scraper():
 
 def main():
 
-	s_one = Scraper("kawiarnia", 10, None, path_of_folder)
+	phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
+	mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
+
+	s_one = Scraper("sklep elektroniczny", 10, None, path_of_folder, mail_regex, phone_regex)
 	s_one.scrape()
 
 if __name__ == '__main__':
