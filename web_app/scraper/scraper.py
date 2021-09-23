@@ -39,23 +39,7 @@ class Scraper():
        			'Accept-Encoding': self.region.accept_encoding_header,
        			'Accept-Language': self.region.accept_language_header}
 
-	#TODO: use requests not urllib.request
-	# def get_html_from_url(self, url: str, debug=False) -> str:
-
-	# 	req = urllib.request.Request(url, headers=Scraper.headers)
-
-	# 	try:
-	# 		with urllib.request.urlopen(req, timeout=10) as google_binary:
-	# 			html = google_binary.read().decode('utf-8')
-	# 			return html
-
-	# 	except Exception as e:
-	# 		if debug:
-	# 			print(e)
-
-	# 		self.error_log += f"Site {url} threw {str(e)}\n"
-
-	# 		return "" 
+		self.search_functions = None # add them to the initializer
 
 	def get_html_from_url(self, url: str, debug=False) -> str:
 
@@ -91,70 +75,59 @@ class Scraper():
 								user_agent = 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0'
 								) if not any(x in link for x in sites_to_ignore)]
 
-
-	#TODO: provide phone regex and mail regex [V]
-	#TODO: provide a programatically created dictionary of tried/untried custom search functions
 	#TODO: provide a protocol for that functions - what they have to have and what they have to return
 	@timeit
-	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs, debug=False):
+	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs, debug=False) -> dict:
 
 		mail_pattern = re.compile(self.mail_regex)
 		phone_pattern = re.compile(self.phone_regex)
 
-		options = {"search_through_a_tag": False}
-
-		functions = {"search_through_a_tag": self.search_through_a_tag_func}
-
 		html_document = soup.prettify()
 
-		first_url = url
-
-
-		#Why are we not appending new emails and phones? 
 		emails = mail_pattern.findall(html_document)
 		phones = phone_pattern.findall(html_document)
 
 		email_protection = False
 
-		if self.parse_result(is_empty(emails), is_empty(phones), options) == "trying":
+		for func in search_funcs:
+			
+			new_soup, new_url = self.call_parsing_function(func, url, soup)
 
-			for option, was_used in options.items():
+			if new_soup is not None:
 
-				if self.parse_result(is_empty(emails), is_empty(phones), options) == "trying":
+				email_protection = self.check_for_email_protection(new_soup)
 
-					new_soup, new_url = self.use_option(was_used, functions[option], url, soup)
+				new_emails = mail_pattern.findall(new_soup.prettify())
+				new_phones = phone_pattern.findall(new_soup.prettify())
 
-					if new_soup is not None:
+				emails.extend(new_emails)
+				phones.extend(new_phones)
 
-						if not email_protection:
-							email_protection = self.check_for_email_protection(new_soup)
-
-						options[option] = True
-						url = new_url
-						soup = new_soup
-						new_emails = mail_pattern.findall(new_soup.prettify())
-						new_phones = phone_pattern.findall(new_soup.prettify())
-
-						emails.extend(new_emails)
-						phones.extend(new_phones)
-
-				else:
-					break
 
 		if email_protection:
 			emails = ["Protected"]
 
-		return {'emails': remove_duplicates(emails), 'phones': remove_duplicates(phones), 'url': first_url}
+		return {'emails': remove_duplicates(emails), 'phones': remove_duplicates(phones), 'url': url}
 
-	def use_option(self, option: bool, func: Callable, url: str, soup: BeautifulSoup):
+
+	def call_parsing_function(self, func: Callable, url: str, soup: BeautifulSoup):
 
 		# all functions return new search
 
-		if not option:
-			new_soup, new_url = func(url, soup)
-			return new_soup, new_url
-		else:
-			return None
+		new_soup, new_url = func(url, soup)
+		return new_soup, new_url
+
+
+
+	# def use_option(self, option: bool, func: Callable, url: str, soup: BeautifulSoup):
+
+	# 	# all functions return new search
+
+	# 	if not option:
+	# 		new_soup, new_url = func(url, soup)
+	# 		return new_soup, new_url
+	# 	else:
+	# 		return None
 
 	def check_for_email_protection(self, soup: BeautifulSoup):
 
@@ -177,7 +150,6 @@ class Scraper():
 
 					# TODO: if any region keyword
 					if any(x in href for x in self.region.contact_keywords):
-					#if ("kontakt" in href) or ("contact" in href):
 						if href[0] and href[1] == "/": # prevent from entering links from "//"
 							return BeautifulSoup(self.get_html_from_url("http://" + a_tag.get('href')[2:]), 'html.parser'), href
 						else:
@@ -217,7 +189,7 @@ class Scraper():
 			site_html = self.get_html_from_url(site)
 			if site_html is not None:
 				site_soup = BeautifulSoup(site_html, 'html.parser')
-				data_list.append(self.parse_site(site_soup, site))
+				data_list.append(self.parse_site(site_soup, site, self.search_through_a_tag_func))
 			else:
 				if debug:
 					print(f"{site} html not found.")
@@ -276,7 +248,10 @@ class Scraper():
 
 		print("File written.")
 
-	def write_error_file(self):
+		if self.write_error_file:
+			self.write_to_error_file()
+
+	def write_to_error_file(self):
 		with open(os.path.join(self.path, f"error_log{self.id}.txt"), 'a') as error_file:
 			error_file.write(error_log)
 
@@ -293,14 +268,6 @@ def main():
 
 if __name__ == '__main__':
 	main()
-
-
-
-
-
-
-
-
 
 
 
