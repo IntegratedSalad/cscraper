@@ -5,6 +5,7 @@ Scraper is a base class, which object's task is to gather emails and phones with
 """
 
 import urllib.request, os.path, csv, re, googlesearch
+import requests
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 
@@ -23,7 +24,6 @@ class Scraper():
 	"""
 
 
-
 	headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
 				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
        			'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
@@ -31,31 +31,50 @@ class Scraper():
        			'Accept-Language': 'pl-PL,pl;q=0.8'}
 
 
-	def __init__(self, query, num_links, regions, path, write_error_file=False):
+	def __init__(self, query, num_links, region, path, write_error_file=False):
 		self.query = query
 		self.num_links = num_links
-		self.regions = regions
+		self.region = region
 		self.path = path
 		self.write_error_file = write_error_file
 		self.error_log = ""
 		self.id = id(self)
 
+	#TODO: use requests not urllib.request
+	# def get_html_from_url(self, url: str, debug=False) -> str:
+
+	# 	req = urllib.request.Request(url, headers=Scraper.headers)
+
+	# 	try:
+	# 		with urllib.request.urlopen(req, timeout=10) as google_binary:
+	# 			html = google_binary.read().decode('utf-8')
+	# 			return html
+
+	# 	except Exception as e:
+	# 		if debug:
+	# 			print(e)
+
+	# 		self.error_log += f"Site {url} threw {str(e)}\n"
+
+	# 		return "" 
+
 	def get_html_from_url(self, url: str, debug=False) -> str:
 
-		req = urllib.request.Request(url, headers=Scraper.headers)
-
 		try:
-			with urllib.request.urlopen(req, timeout=10) as google_binary:
-				html = google_binary.read().decode('utf-8')
+
+			with requests.Session() as session:
+
+				req = session.request('GET', url, headers=Scraper.headers, timeout=10)
+				html = req.text
 				return html
 
-		except Exception as e:
+		except requests.RequestException as e:
 			if debug:
 				print(e)
 
 			self.error_log += f"Site {url} threw {str(e)}\n"
 
-			return "" 
+			return ""
 
 	def get_links(self, search_string: str, number_of_search_results: int, sites_to_ignore: Tuple[str]) -> List[str]:
 
@@ -74,7 +93,10 @@ class Scraper():
 								) if not any(x in link for x in sites_to_ignore)]
 
 
-	def parse_site(self, soup: BeautifulSoup, url: str, *args):
+	#TODO: provide phone regex and mail regex
+	#TODO: provide a programatically created dictionary of tried/untried custom search functions
+	#TODO: provide a protocol for that functions - what they have to have and what they have to return
+	def parse_site(self, soup: BeautifulSoup, url: str):#phone_regex: str, mail_regex: str, *search_funcs):
 
 		phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
 		mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
@@ -141,7 +163,8 @@ class Scraper():
 
 		return False
 
-	def search_through_a_tag_func(self, url, soup):
+	# TODO: TUPLE KEYWORDS
+	def search_through_a_tag_func(self, url, soup):#, keywords):
 
 		try:
 			for a_tag in soup.find_all('a'):
@@ -259,7 +282,7 @@ class Scraper():
 
 def main():
 
-	s_one = Scraper("mandzio", 10, None, path_of_folder)
+	s_one = Scraper("kawiarnia", 10, None, path_of_folder)
 	s_one.scrape()
 
 if __name__ == '__main__':
