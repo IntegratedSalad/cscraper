@@ -95,7 +95,8 @@ class Scraper():
 	#TODO: provide phone regex and mail regex [V]
 	#TODO: provide a programatically created dictionary of tried/untried custom search functions
 	#TODO: provide a protocol for that functions - what they have to have and what they have to return
-	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs):
+	@timeit
+	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs, debug=False):
 
 		mail_pattern = re.compile(self.mail_regex)
 		phone_pattern = re.compile(self.phone_regex)
@@ -108,6 +109,8 @@ class Scraper():
 
 		first_url = url
 
+
+		#Why are we not appending new emails and phones? 
 		emails = mail_pattern.findall(html_document)
 		phones = phone_pattern.findall(html_document)
 
@@ -129,8 +132,11 @@ class Scraper():
 						options[option] = True
 						url = new_url
 						soup = new_soup
-						emails = mail_pattern.findall(new_soup.prettify())
-						phones = phone_pattern.findall(new_soup.prettify())
+						new_emails = mail_pattern.findall(new_soup.prettify())
+						new_phones = phone_pattern.findall(new_soup.prettify())
+
+						emails.extend(new_emails)
+						phones.extend(new_phones)
 
 				else:
 					break
@@ -206,12 +212,15 @@ class Scraper():
 
 		for site in site_list:
 			if debug:
-				print(site)
+				print(f"PARSING:  {site}")
 
 			site_html = self.get_html_from_url(site)
 			if site_html is not None:
 				site_soup = BeautifulSoup(site_html, 'html.parser')
 				data_list.append(self.parse_site(site_soup, site))
+			else:
+				if debug:
+					print(f"{site} html not found.")
 
 		return data_list
 
@@ -259,7 +268,7 @@ class Scraper():
 		links = self.get_links(unqouted_search, self.num_links, ("youtube", "facebook", "olx", "allegro", "sprzedajemy", "gumtree", "ceneo", "instagram"))
 
 		print("Finding emails and phones...")
-		data = self.parse_through_sites(links)
+		data = self.parse_through_sites(links, debug=True)
 
 		print("Writing file...")
 		make_folder(self.path)
@@ -279,7 +288,7 @@ def main():
 	phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
 	mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
 
-	s_one = Scraper("sklep elektroniczny", 10, region_pol, path_of_folder, mail_regex, phone_regex)
+	s_one = Scraper("domy weselne", 10, region_pol, path_of_folder, mail_regex, phone_regex)
 	s_one.scrape()
 
 if __name__ == '__main__':
