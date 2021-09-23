@@ -4,8 +4,7 @@ Scraper is a base class, which object's task is to gather emails and phones with
 
 """
 
-import urllib.request, os.path, csv, re, googlesearch
-import requests
+import os.path, csv, re, googlesearch, requests, region
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 
@@ -23,14 +22,6 @@ class Scraper():
 
 	"""
 
-
-	headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
-				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-       			'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
-       			'Accept-Encoding': 'none',
-       			'Accept-Language': 'pl-PL,pl;q=0.8'}
-
-
 	def __init__(self, query, num_links, region, path, mail_regex, phone_regex, write_error_file=False):
 		self.query = query
 		self.num_links = num_links
@@ -41,6 +32,12 @@ class Scraper():
 		self.write_error_file = write_error_file
 		self.error_log = ""
 		self.id = id(self)
+
+		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
+				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+       			'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+       			'Accept-Encoding': self.region.accept_encoding_header,
+       			'Accept-Language': self.region.accept_language_header}
 
 	#TODO: use requests not urllib.request
 	# def get_html_from_url(self, url: str, debug=False) -> str:
@@ -66,7 +63,7 @@ class Scraper():
 
 			with requests.Session() as session:
 
-				req = session.request('GET', url, headers=Scraper.headers, timeout=10)
+				req = session.request('GET', url, headers=self.headers, timeout=10)
 				html = req.text
 				return html
 
@@ -95,7 +92,7 @@ class Scraper():
 								) if not any(x in link for x in sites_to_ignore)]
 
 
-	#TODO: provide phone regex and mail regex
+	#TODO: provide phone regex and mail regex [V]
 	#TODO: provide a programatically created dictionary of tried/untried custom search functions
 	#TODO: provide a protocol for that functions - what they have to have and what they have to return
 	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs):
@@ -163,7 +160,7 @@ class Scraper():
 		return False
 
 	# TODO: TUPLE KEYWORDS
-	def search_through_a_tag_func(self, url, soup):#, keywords):
+	def search_through_a_tag_func(self, url, soup):
 
 		try:
 			for a_tag in soup.find_all('a'):
@@ -172,7 +169,9 @@ class Scraper():
 					if "email-protection" in a_tag.get('href'):
 						return None, ""
 
-					if ("kontakt" in href) or ("contact" in href):
+					# TODO: if any region keyword
+					if any(x in href for x in self.region.contact_keywords):
+					#if ("kontakt" in href) or ("contact" in href):
 						if href[0] and href[1] == "/": # prevent from entering links from "//"
 							return BeautifulSoup(self.get_html_from_url("http://" + a_tag.get('href')[2:]), 'html.parser'), href
 						else:
@@ -253,13 +252,7 @@ class Scraper():
 
 	def scrape(self):
 
-		headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:57.0) Gecko/20100101 Firefox/57.0',
-				'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-       			'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
-       			'Accept-Encoding': 'none',
-       			'Accept-Language': 'pl-PL,pl;q=0.8'}
-
-		city = "kraków"
+		city = self.region.city
 
 		unqouted_search = f"{self.query} {city}"
 
@@ -281,10 +274,12 @@ class Scraper():
 
 def main():
 
+	region_pol = region.RegionData("pl-PL,pl;q=0.8", "none", "pl", "pl", ("kontakt", "contact"), "kraków")
+
 	phone_regex = r'\d{3}\s\d{3}\s\d{3}|[+]48\s12\s\d{3}\s\d{3}|012\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}\s\d{3}\s\d{3}|[+]48\s\d{2}\s\d{3}\s\d{2}\s\d{2}|[+]48\s\d{3}-\d{3}-\d{3}|12\s\d{3}\s\d{2}\s\d{2}|[(]\d{2}[)]\s\d{3}\s\d{2}\s\d{2}\s\d{2}|\d{2}-\d{3}-\d{2}-\d{2}|\d{3}-\d{3}-\d{3}'
 	mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
 
-	s_one = Scraper("sklep elektroniczny", 10, None, path_of_folder, mail_regex, phone_regex)
+	s_one = Scraper("sklep elektroniczny", 10, region_pol, path_of_folder, mail_regex, phone_regex)
 	s_one.scrape()
 
 if __name__ == '__main__':
