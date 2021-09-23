@@ -7,9 +7,7 @@ Scraper is a base class, which object's task is to gather emails and phones with
 import os.path, csv, re, googlesearch, requests, region
 from urllib.parse import quote
 from bs4 import BeautifulSoup
-
 from typing import List, Callable, Tuple
-
 from utils import *
 
 path_of_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data")
@@ -118,18 +116,7 @@ class Scraper():
 		return new_soup, new_url
 
 
-
-	# def use_option(self, option: bool, func: Callable, url: str, soup: BeautifulSoup):
-
-	# 	# all functions return new search
-
-	# 	if not option:
-	# 		new_soup, new_url = func(url, soup)
-	# 		return new_soup, new_url
-	# 	else:
-	# 		return None
-
-	def check_for_email_protection(self, soup: BeautifulSoup):
+	def check_for_email_protection(self, soup: BeautifulSoup) -> bool:
 
 		for a_tag in soup.find_all('a'):
 			href = a_tag.get('href')
@@ -138,7 +125,7 @@ class Scraper():
 
 		return False
 
-	# TODO: TUPLE KEYWORDS
+
 	def search_through_a_tag_func(self, url, soup):
 
 		try:
@@ -148,7 +135,6 @@ class Scraper():
 					if "email-protection" in a_tag.get('href'):
 						return None, ""
 
-					# TODO: if any region keyword
 					if any(x in href for x in self.region.contact_keywords):
 						if href[0] and href[1] == "/": # prevent from entering links from "//"
 							return BeautifulSoup(self.get_html_from_url("http://" + a_tag.get('href')[2:]), 'html.parser'), href
@@ -161,21 +147,6 @@ class Scraper():
 			return BeautifulSoup(self.get_html_from_url(new_link), 'html.parser'), new_link
 
 		return None, ""
-
-	def parse_result(self, is_emails_empty, is_phones_empty, dict_of_options):
-
-
-		"""TODO: enum instead of strings"""
-
-		if (is_emails_empty or is_phones_empty) and (all(dict_of_options.values()) is False):
-			return "trying"
-
-		else:
-			if (is_phones_empty or is_emails_empty) and all(dict_of_options.values()):
-				return "got_some"
-
-			elif (not is_phones_empty and not is_emails_empty):
-				return "got_all"
 
 
 	def parse_through_sites(self, site_list, debug=False):
@@ -195,6 +166,7 @@ class Scraper():
 					print(f"{site} html not found.")
 
 		return data_list
+
 
 	def write_to_csv(self, data, search_name, number_of_links, debug=False):
 
@@ -230,6 +202,7 @@ class Scraper():
 
 		if debug:
 			print(f"Emails unfound: {emails_unfound}/{number_of_links}\nPhones unfound: {phones_unfound}/{number_of_links}")
+
 
 	def scrape(self):
 
@@ -268,6 +241,4 @@ def main():
 
 if __name__ == '__main__':
 	main()
-
-
 
