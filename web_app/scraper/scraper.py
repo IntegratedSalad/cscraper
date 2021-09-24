@@ -5,6 +5,8 @@ Scraper is a base class, which object's task is to gather emails and phones with
 """
 
 import os.path, csv, re, googlesearch, requests, region
+import asyncio, aiohttp
+
 from urllib.parse import quote
 from bs4 import BeautifulSoup
 from typing import List, Callable, Tuple
@@ -39,23 +41,40 @@ class Scraper():
 
 		self.search_functions = None # add them to the initializer
 
-	def get_html_from_url(self, url: str, debug=False) -> str:
+	# def get_html_from_url(self, url: str, debug=False) -> str:
+
+	# 	try:
+
+	# 		with requests.Session() as session:
+
+	# 			response = await session.request('GET', url, headers=self.headers, timeout=10)
+	# 			html = response.text
+	# 			return html
+
+	# 	except requests.RequestException as e:
+	# 		if debug:
+	# 			print(e)
+
+	# 		self.error_log += f"Site {url} threw {str(e)}\n"
+
+	# 		return ""
+
+	async def get_html_from_url(self, url: str, debug=False) -> str:
 
 		try:
 
-			with requests.Session() as session:
+			async with aiohttp.ClientSession(headers=self.headers, timeout=aiohttp.ClientTimeout(total=10)) as session:
+				async with session.get(url) as resp:
+					return await resp.text()
 
-				req = session.request('GET', url, headers=self.headers, timeout=10)
-				html = req.text
-				return html
-
-		except requests.RequestException as e:
+		except aiohttp.ClientError as e:
 			if debug:
 				print(e)
 
 			self.error_log += f"Site {url} threw {str(e)}\n"
 
 			return ""
+
 
 	def get_links(self, search_string: str, number_of_search_results: int, sites_to_ignore: Tuple[str]) -> List[str]:
 
@@ -74,8 +93,8 @@ class Scraper():
 								) if not any(x in link for x in sites_to_ignore)]
 
 	#TODO: provide a protocol for that functions - what they have to have and what they have to return
-	@timeit
-	def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs, debug=False) -> dict:
+	#@timeit
+	async def parse_site(self, soup: BeautifulSoup, url: str, *search_funcs, debug=False) -> dict:
 
 		mail_pattern = re.compile(self.mail_regex)
 		phone_pattern = re.compile(self.phone_regex)
@@ -108,7 +127,7 @@ class Scraper():
 		return {'emails': remove_duplicates(emails), 'phones': remove_duplicates(phones), 'url': url}
 
 
-	def call_parsing_function(self, func: Callable, url: str, soup: BeautifulSoup):
+	async def call_parsing_function(self, func: Callable, url: str, soup: BeautifulSoup):
 
 		# all functions return new search
 
@@ -126,7 +145,7 @@ class Scraper():
 		return False
 
 
-	def search_through_a_tag_func(self, url, soup):
+	async def search_through_a_tag_func(self, url, soup):
 
 		try:
 			for a_tag in soup.find_all('a'):
@@ -149,23 +168,42 @@ class Scraper():
 		return None, ""
 
 
-	def parse_through_sites(self, site_list, debug=False):
+	# async def parse_through_sites(self, site_list, debug=False):
+
+	# 	data_list = []
+
+	# 	for site in site_list:
+	# 		if debug:
+	# 			print(f"PARSING:  {site}")
+
+	# 		site_html = self.get_html_from_url(site)
+	# 		if site_html is not None:
+	# 			site_soup = BeautifulSoup(site_html, 'html.parser')
+	# 			data_list.append(self.parse_site(site_soup, site, self.search_through_a_tag_func))
+	# 		else:
+	# 			if debug:
+	# 				print(f"{site} html not found.")
+
+	# 	return data_list
+
+	async def parse_through_sites(self, site_list, debug=False):
+
+
+		"""TODO:
+
+
+		Here start async session with aiohttp.
+		Create list of tasks based on how many sites there are.
+		await asyncio.gather these tasks 
+
+		"""
 
 		data_list = []
 
 		for site in site_list:
-			if debug:
-				print(f"PARSING:  {site}")
 
-			site_html = self.get_html_from_url(site)
-			if site_html is not None:
-				site_soup = BeautifulSoup(site_html, 'html.parser')
-				data_list.append(self.parse_site(site_soup, site, self.search_through_a_tag_func))
-			else:
-				if debug:
-					print(f"{site} html not found.")
-
-		return data_list
+			site_html = await self.get_html_from_url(site)
+			print(site_html)
 
 
 	def write_to_csv(self, data, search_name, number_of_links, debug=False):
@@ -204,7 +242,7 @@ class Scraper():
 			print(f"Emails unfound: {emails_unfound}/{number_of_links}\nPhones unfound: {phones_unfound}/{number_of_links}")
 
 
-	def scrape(self):
+	async def scrape(self):
 
 		city = self.region.city
 
@@ -212,24 +250,28 @@ class Scraper():
 
 		links = self.get_links(unqouted_search, self.num_links, ("youtube", "facebook", "olx", "allegro", "sprzedajemy", "gumtree", "ceneo", "instagram"))
 
+		# ASYNC PART
+
 		print("Finding emails and phones...")
-		data = self.parse_through_sites(links, debug=True)
+		data = await self.parse_through_sites(links, debug=True)
 
-		print("Writing file...")
-		make_folder(self.path)
-		self.write_to_csv(data, unqouted_search, self.num_links)
 
-		print("File written.")
 
-		if self.write_error_file:
-			self.write_to_error_file()
+		# print("Writing file...")
+		# make_folder(self.path)
+		# self.write_to_csv(data, unqouted_search, self.num_links)
+
+		# print("File written.")
+
+		# if self.write_error_file:
+		# 	self.write_to_error_file()
 
 	def write_to_error_file(self):
 		with open(os.path.join(self.path, f"error_log{self.id}.txt"), 'a') as error_file:
 			error_file.write(error_log)
 
 
-def main():
+async def main():
 
 	region_pol = region.RegionData("pl-PL,pl;q=0.8", "none", "pl", "pl", ("kontakt", "contact"), "kraków")
 
@@ -237,8 +279,9 @@ def main():
 	mail_regex = r'\b[\w^.]+@\S+[.]\w+[.com|.pl|.eu|.org]+'
 
 	s_one = Scraper("domy weselne", 10, region_pol, path_of_folder, mail_regex, phone_regex)
-	s_one.scrape()
+	await s_one.scrape()
 
 if __name__ == '__main__':
-	main()
+	asyncio.run(main())
+	# main()
 
